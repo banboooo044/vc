@@ -7,7 +7,11 @@ import torch.nn.init as init
 
 def cc(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    return net.to(device)
+    net = net.to(device)
+    if device == 'cuda':
+        net = torch.nn.DataParallel(net) # make parallel
+        cudnn.benchmark = True
+    return net
 
 class Logger(object):
     def __init__(self, logdir='./log'):
