@@ -8,6 +8,24 @@ from functools import reduce
 from torch.nn.utils import spectral_norm
 from utils import cc
 
+class EarlyStopping(object):
+    def __init__(self, patient, min_delta):
+        self.prev_monitor_value = float('inf')
+        self.patient = patient
+        self.min_delta = min_delta
+        self.cnt = 0
+
+    def is_stop(self, monitor_value):
+        if (self.prev_monitor_value-monitor_value) > self.min_delta:
+            self.cnt = 0
+            self.prev_monitor_value = monitor_value
+            return False
+        elif self.cnt < self.patient:
+            self.cnt += 1
+            return False
+        else:
+            return True
+
 class DummyEncoder(object):
     def __init__(self, encoder):
         self.encoder = encoder
@@ -384,12 +402,19 @@ class AE(nn.Module):
         dec = self.decoder(mu + torch.exp(log_sigma / 2) * eps, emb)
         return mu, log_sigma, emb, dec
 
-    def inference(self, x, x_cond):
+    def inference(self, x, x_cond, multi=False):
         emb = self.speaker_encoder(x_cond)
+        if multi:
+            emb = torch.sum(emb, dim=0) / emb.size()[0]
         mu, _ = self.content_encoder(x)
         dec = self.decoder(mu, emb)
         return dec
 
     def get_speaker_embeddings(self, x):
         emb = self.speaker_encoder(x)
+        return emb
+
+    def get_speaker_embeddings_multi_source(self, x):
+        emb = self.speaker_encoder(x)
+        emb = torch.sum(emb, dim=0) / emb.size()[0]
         return emb

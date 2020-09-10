@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 import pickle
-from model import AE
+from model import AE, EarlyStopping
 from data_utils import get_data_loader
 from data_utils import PickleDataset
 from utils import *
@@ -21,14 +21,15 @@ class Solver(object):
 
         # args store other information
         self.args = args
-        print(self.args)
 
         # logger to use tensorboard
-        self.logger = Logger(self.args.logdir)
+        os.makedirs(self.args.logdir, exist_ok=True)
+        self.logger = Logger(f'{self.args.logdir}/{self.args.tag}')
 
         # get dataloader
         self.get_data_loaders()
 
+        os.makedirs(self.args.store_model_path, exist_ok=True)
         # init the model with config
         self.build_model()
         self.save_config()
@@ -36,22 +37,24 @@ class Solver(object):
         if args.load_model:
             self.load_model()
 
+        self.EarlyStopping = EarlyStopping(patient=self.config['early_stopping']['patient'], min_delta=self.config['early_stopping']['min_delta'])
+
     def save_model(self, iteration):
         # save model and discriminator and their optimizer
-        torch.save(self.model.state_dict(), f'{self.args.store_model_path}.ckpt')
-        torch.save(self.opt.state_dict(), f'{self.args.store_model_path}.opt')
+        torch.save(self.model.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
+        torch.save(self.opt.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.opt')
 
     def save_config(self):
-        with open(f'{self.args.store_model_path}.config.yaml', 'w') as f:
+        with open(f'{self.args.store_model_path}/{self.args.tag}.config.yaml', 'w') as f:
             yaml.dump(self.config, f)
-        with open(f'{self.args.store_model_path}.args.yaml', 'w') as f:
+        with open(f'{self.args.store_model_path}/{self.args.tag}.args.yaml', 'w') as f:
             yaml.dump(vars(self.args), f)
         return
 
     def load_model(self):
         print(f'Load model from {self.args.load_model_path}')
-        self.model.load_state_dict(torch.load(f'{self.args.load_model_path}.ckpt'))
-        self.opt.load_state_dict(torch.load(f'{self.args.load_model_path}.opt'))
+        self.model.load_state_dict(torch.load(f'{self.args.load_model_path}/{self.args.tag}.ckpt'))
+        self.opt.load_state_dict(torch.load(f'{self.args.load_model_path}/{self.args.tag}.opt'))
         return
 
     # データをロードする.
@@ -66,9 +69,23 @@ class Solver(object):
                 shuffle=self.config['data_loader']['shuffle'], 
                 num_workers=4, drop_last=False)
         self.train_iter = infinite_iter(self.train_loader)
+
+        if self.args.use_eval_set:
+            self.eval_dataset = PickleDataset(
+                os.path.join(data_dir, f'{self.args.eval_set}.pkl'),
+                os.path.join(data_dir, self.args.eval_index_file),
+                segment_size=self.config['data_loader']['segment_size'])
+
+            self.eval_loader = get_data_loader(self.eval_dataset,
+                frame_size=self.config['data_loader']['frame_size'],
+                batch_size=self.config['data_loader']['batch_size'], 
+                shuffle=self.config['data_loader']['shuffle'], 
+                num_workers=4, drop_last=False)
+            self.eval_iter = infinite_iter(self.eval_loader)
+
         return
 
-    def build_model(self): 
+    def build_model(self):
         # create model, discriminator, optimizers
         self.model = cc(AE(self.config))
         print(self.model)
@@ -79,42 +96,70 @@ class Solver(object):
         print(self.opt)
         return
 
-    def ae_step(self, data, lambda_kl):
+    def ae_step(self, data, lambda_kl, phase):
         x = cc(data)
-        mu, log_sigma, emb, dec = self.model(x)
-        criterion = nn.L1Loss()
-        loss_rec = criterion(dec, x)
-        loss_kl = 0.5 * torch.mean(torch.exp(log_sigma) + mu ** 2 - 1 - log_sigma)
-        loss = self.config['lambda']['lambda_rec'] * loss_rec + \
-                lambda_kl * loss_kl
         self.opt.zero_grad()
-        loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
-                max_norm=self.config['optimizer']['grad_norm'])
-        self.opt.step()
-        meta = {'loss_rec': loss_rec.item(),
-                'loss_kl': loss_kl.item(),
-                'grad_norm': grad_norm}
+        with torch.set_grad_enabled(phase=='train'):
+            mu, log_sigma, emb, dec = self.model(x)
+            criterion = nn.L1Loss()
+            loss_rec = criterion(dec, x)
+            loss_kl = 0.5 * torch.mean(torch.exp(log_sigma) + mu ** 2 - 1 - log_sigma)
+            loss = self.config['lambda']['lambda_rec'] * loss_rec + \
+                lambda_kl * loss_kl
+            if phase == 'train':
+                loss.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
+                        max_norm=self.config['optimizer']['grad_norm'])
+                self.opt.step()
+                meta = {'loss_rec': loss_rec.item(),
+                        'loss_kl': loss_kl.item(),
+                        'grad_norm': grad_norm}
+            else:
+                meta = {'loss_rec': loss_rec.item(),
+                        'loss_kl': loss_kl.item() }
+
         return meta
 
     def train(self, n_iterations):
+        n_eval = len(self.eval_dataset)
+        loss_eval = 0.0
         for iteration in range(n_iterations):
             if iteration >= self.config['annealing_iters']:
                 lambda_kl = self.config['lambda']['lambda_kl']
             else:
-                lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) / self.config['annealing_iters'] 
-            data = next(self.train_iter)
-            meta = self.ae_step(data, lambda_kl)
-            # add to logger
-            if iteration % self.args.summary_steps == 0:
-                self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
-            loss_rec = meta['loss_rec']
-            loss_kl = meta['loss_kl']
+                lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) / self.config['annealing_iters']
 
-            print(f'AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                    f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
-            if (iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations:
-                self.save_model(iteration=iteration)
-                print()
+            for phase in ['train', 'eval']:
+                if phase == 'train':
+                    self.model.train()
+                elif phase == 'eval':
+                    self.model.eval()
+                    if iteration > 0 and iteration % n_eval == 0:
+                        flg = self.EarlyStopping.is_stop(loss_eval)
+                        loss_eval = 0.0
+                        if flg:
+                            self.save_model(iteration=iteration)
+                            return
+
+                data = next(self.train_iter)
+                meta = self.ae_step(data, lambda_kl, phase)
+                # add to logger
+                loss_rec = meta['loss_rec']
+                loss_kl = meta['loss_kl']
+
+                if phase == 'eval':
+                    loss_eval += (loss_rec + loss_kl)
+
+                if iteration % self.args.summary_steps == 0:
+                    print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
+                        f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ')
+                    self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
+
+                print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
+                        f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
+
+                if (iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations:
+                    self.save_model(iteration=iteration)
+                    print()
         return
 

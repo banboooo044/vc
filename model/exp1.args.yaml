@@ -1,0 +1,16 @@
+config: config.yaml
+data_dir: /Users/banboooo044/Documents/speaker_class/data
+eval_index_file: in_test_samples_128.json
+eval_set: in_test
+iters: 500000
+load_model: false
+load_model_path: /storage/model/adaptive_vc/model
+load_opt: false
+logdir: /Users/banboooo044/Documents/vc/log
+save_steps: 5000
+store_model_path: /Users/banboooo044/Documents/vc/model
+summary_steps: 1000
+tag: exp1
+train_index_file: train_samples_128.json
+train_set: train_128
+use_eval_set: true

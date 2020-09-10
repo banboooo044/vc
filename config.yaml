@@ -50,3 +50,6 @@ lambda:
     lambda_rec: 10
     lambda_kl: 1
 annealing_iters: 20000
+early_stopping:
+    patient: 2
+    min_delta : 0.0
