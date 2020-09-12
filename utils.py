@@ -7,7 +7,7 @@ import torch.nn.init as init
 
 def cc_data(data):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data = data.to(data)
+    data = data.to(device)
 
 def cc_model(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
