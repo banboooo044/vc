@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import sys
-import os 
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
@@ -123,43 +123,48 @@ class Solver(object):
     def train(self, n_iterations):
         n_eval = len(self.eval_dataset)
         loss_eval = 0.0
-        for iteration in range(n_iterations):
-            if iteration >= self.config['annealing_iters']:
-                lambda_kl = self.config['lambda']['lambda_kl']
-            else:
-                lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) / self.config['annealing_iters']
+        try:
+            for iteration in range(n_iterations):
+                if iteration >= self.config['annealing_iters']:
+                    lambda_kl = self.config['lambda']['lambda_kl']
+                else:
+                    lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) / self.config['annealing_iters']
 
-            for phase in ['train', 'eval']:
-                if phase == 'train':
-                    self.model.train()
-                elif phase == 'eval':
-                    self.model.eval()
-                    if iteration > 0 and iteration % n_eval == 0:
-                        flg = self.EarlyStopping.is_stop(loss_eval)
-                        loss_eval = 0.0
-                        if flg:
-                            self.save_model(iteration=iteration)
-                            return
+                for phase in ['train', 'eval']:
+                    if phase == 'train':
+                        self.model.train()
+                    elif phase == 'eval':
+                        self.model.eval()
+                        if iteration > 0 and iteration % n_eval == 0:
+                            print(f"[{iteration + 1}/{n_iterations}] : eval loss : {loss_eval}")
+                            flg = self.EarlyStopping.is_stop(loss_eval)
+                            loss_eval = 0.0
+                            if flg:
+                                self.save_model(iteration=iteration)
+                                return
 
-                data = next(self.train_iter)
-                meta = self.ae_step(data, lambda_kl, phase)
-                # add to logger
-                loss_rec = meta['loss_rec']
-                loss_kl = meta['loss_kl']
+                    data = next(self.train_iter)
+                    meta = self.ae_step(data, lambda_kl, phase)
+                    # add to logger
+                    loss_rec = meta['loss_rec']
+                    loss_kl = meta['loss_kl']
 
-                if phase == 'eval':
-                    loss_eval += (loss_rec + loss_kl)
+                    if phase == 'eval':
+                        loss_eval += (loss_rec + loss_kl)
 
-                if iteration % self.args.summary_steps == 0:
+                    if iteration % self.args.summary_steps == 0:
+                        print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
+                            f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ')
+                        self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
+
                     print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                        f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ')
-                    self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
+                            f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
 
-                print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                        f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
-
-                if (iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations:
-                    self.save_model(iteration=iteration)
-                    print()
+                    if (iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations:
+                        self.save_model(iteration=iteration)
+                        print()
+        except KeyboardInterrupt:
+            self.save_model(iteration=iteration)
+            self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
         return
 

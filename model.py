@@ -402,10 +402,15 @@ class AE(nn.Module):
         dec = self.decoder(mu + torch.exp(log_sigma / 2) * eps, emb)
         return mu, log_sigma, emb, dec
 
-    def inference(self, x, x_cond, multi=False):
+    def inference(self, x, x_cond):
         emb = self.speaker_encoder(x_cond)
-        if multi:
-            emb = torch.sum(emb, dim=0) / emb.size()[0]
+        mu, _ = self.content_encoder(x)
+        dec = self.decoder(mu, emb)
+        return dec
+
+    def inference_multi_target(self, x, x_cond_list):
+        emb_list = torch.tensor([ self.speaker_encoder(x_cond) for x_cond in x_cond_list ])
+        emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
         mu, _ = self.content_encoder(x)
         dec = self.decoder(mu, emb)
         return dec
@@ -414,7 +419,7 @@ class AE(nn.Module):
         emb = self.speaker_encoder(x)
         return emb
 
-    def get_speaker_embeddings_multi_source(self, x):
-        emb = self.speaker_encoder(x)
-        emb = torch.sum(emb, dim=0) / emb.size()[0]
-        return emb
+    def get_speaker_embeddings_multi_target(self, x_list):
+        emb_list = torch.tensor([ self.speaker_encoder(x) for x in x_list ])
+        emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
+        return

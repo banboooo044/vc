@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, Namespace
 import torch
 from solver import Solver
-import yaml 
+import yaml
 import sys
 
 if __name__ == '__main__':
