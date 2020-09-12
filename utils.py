@@ -8,8 +8,7 @@ import torch.nn.init as init
 def cc(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = net.to(device)
-    print("Device", device, device == 'cuda')
-    if device == 'cuda':
+    if device.type == 'cuda':
         device_ids = list(range(torch.cuda.device_count()))
         print('deviec_ids: ', device_ids)
         net = torch.nn.DataParallel(net, device_ids=device_ids) # make parallel
