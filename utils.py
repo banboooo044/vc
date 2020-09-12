@@ -8,6 +8,7 @@ import torch.nn.init as init
 def cc(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = net.to(device)
+    print(device)
     if device == 'cuda':
         device_ids = list(range(torch.cuda.device_count()))
         print(device_ids)
