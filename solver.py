@@ -122,6 +122,7 @@ class Solver(object):
 
     def train(self, n_iterations):
         loss_eval = 0.0
+        epoch = 0
         try:
             for iteration in range(n_iterations):
                 if iteration >= self.config['annealing_iters']:
@@ -137,7 +138,8 @@ class Solver(object):
                         self.model.eval()
                         data, flg = next(self.eval_iter)
                         if iteration > 0 and flg:
-                            print(f"[{iteration + 1}/{n_iterations}] : eval loss : {loss_eval:.4f}")
+                            print(f"[{epoch}] : eval loss : {loss_eval:.4f}")
+                            epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
                             loss_eval = 0.0
                             if flg:
