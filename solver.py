@@ -87,7 +87,7 @@ class Solver(object):
 
     def build_model(self):
         # create model, discriminator, optimizers
-        self.model = cc(AE(self.config))
+        self.model = cc_model(AE(self.config))
         print(self.model)
         optimizer = self.config['optimizer']
         self.opt = torch.optim.Adam(self.model.parameters(), 
@@ -97,11 +97,7 @@ class Solver(object):
         return
 
     def ae_step(self, data, lambda_kl, phase):
-        print(type(data))
-        print(data.size())
-        x = cc(data)
-        print(type(x))
-        print(x.size())
+        x = cc_data(data)
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
             mu, log_sigma, emb, dec = self.model(x)

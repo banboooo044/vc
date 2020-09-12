@@ -5,12 +5,15 @@ import editdistance
 import torch.nn as nn
 import torch.nn.init as init
 
-def cc(net):
+def cc_data(data):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net = net.to(device)
+
+def cc_model(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = net.to(device)
     if device.type == 'cuda':
         device_ids = list(range(torch.cuda.device_count()))
-        print('deviec_ids: ', device_ids)
         net = torch.nn.DataParallel(net, device_ids=device_ids) # make parallel
         torch.backends.cudnn.benchmark = True
     return net
