@@ -121,7 +121,6 @@ class Solver(object):
         return meta
 
     def train(self, n_iterations):
-        n_eval = len(self.eval_dataset)
         loss_eval = 0.0
         try:
             for iteration in range(n_iterations):
@@ -133,17 +132,18 @@ class Solver(object):
                 for phase in ['train', 'eval']:
                     if phase == 'train':
                         self.model.train()
+                        data, _ = next(self.train_iter)
                     elif phase == 'eval':
                         self.model.eval()
-                        if iteration > 0 and iteration % n_eval == 0:
-                            print(f"[{iteration + 1}/{n_iterations}] : eval loss : {loss_eval}")
+                        data, flg = next(self.eval_iter)
+                        if iteration > 0 and flg:
+                            print(f"[{iteration + 1}/{n_iterations}] : eval loss : {loss_eval:.4f}")
                             flg = self.EarlyStopping.is_stop(loss_eval)
                             loss_eval = 0.0
                             if flg:
                                 self.save_model(iteration=iteration)
                                 return
 
-                    data = next(self.train_iter)
                     meta = self.ae_step(data, lambda_kl, phase)
                     # add to logger
                     loss_rec = meta['loss_rec']

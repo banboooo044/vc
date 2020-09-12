@@ -38,9 +38,13 @@ class Logger(object):
 
 def infinite_iter(iterable):
     it = iter(iterable)
+    reset_flg = True
     while True:
         try:
             ret = next(it)
-            yield ret
+            yield ret, reset_flg
+            reset_flg = False
         except StopIteration:
             it = iter(iterable)
+            reset_flg = True
+
