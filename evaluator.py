@@ -31,6 +31,7 @@ class Evaluator(object):
         self.build_model()
         self.load_model()
 
+        print(self.arge.attr)
         with open(self.args.attr, 'rb') as f:
             self.attr = pickle.load(f)
 
