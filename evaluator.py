@@ -84,7 +84,7 @@ class Evaluator(object):
                 'loss_kl': loss_kl.item() }
         return meta
 
-    def eval_rec(self, data):
+    def eval_rec(self):
         self.model.eval()
         loss_rec, loss_kl = 0.0, 0.0, 0.0
         num = 0
