@@ -52,4 +52,4 @@ lambda:
 annealing_iters: 20000
 early_stopping:
     patient: 3
-    min_delta : 1e-8
+    min_delta : 0.00001
