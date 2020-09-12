@@ -12,7 +12,7 @@ def cc(net):
         device_ids = list(range(torch.cuda.device_count()))
         print('deviec_ids: ', device_ids)
         net = torch.nn.DataParallel(net, device_ids=device_ids) # make parallel
-        cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = True
     return net
 
 
