@@ -46,7 +46,7 @@ class Inferencer(object):
 
     def build_model(self):
         # create model, discriminator, optimizers
-        self.model = cc(AE(self.config))
+        self.model = cc_model(AE(self.config))
         print(self.model)
         self.model.eval()
         return
