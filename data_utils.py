@@ -56,7 +56,6 @@ class PickleDataset(Dataset):
     def __len__(self):
         return len(self.indexes)
 
-
 class PickleDatasetParallel(Dataset):
     def __init__(self, source_pickle_path, sample_index_path, segment_size):
         with open(source_pickle_path, 'rb') as f:
@@ -66,4 +65,4 @@ class PickleDatasetParallel(Dataset):
         self.segment_size = segment_size
 
     def _read_parallel_data(self):
-        for filename, _ in self.indexes:
+        pass
