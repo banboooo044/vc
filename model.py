@@ -42,6 +42,7 @@ def pad_layer(inp, layer, pad_type='reflect'):
     else:
         pad = (kernel_size//2, kernel_size//2)
     # padding
+    print(inp)
     inp = F.pad(inp, 
             pad=pad,
             mode=pad_type)
