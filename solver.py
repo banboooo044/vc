@@ -98,7 +98,7 @@ class Solver(object):
 
     def ae_step(self, data, lambda_kl, phase):
         print(type(data))
-        print(x.size())
+        print(data.size())
         x = cc(data)
         print(type(x))
         print(x.size())
