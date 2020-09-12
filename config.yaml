@@ -37,7 +37,7 @@ Decoder:
 data_loader:
     segment_size: 128
     frame_size: 1
-    batch_size: 128
+    batch_size: 512
     shuffle: True
 optimizer:
     lr: 0.0005
