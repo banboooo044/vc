@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 import pickle
-from inference import Inferencer
 from model import AE, EarlyStopping
 from data_utils import get_data_loader
 from data_utils import PickleDataset
@@ -24,8 +23,6 @@ class Evaluator(object):
 
         # args store other information
         self.args = args
-
-        self.inferencer = Inferencer(config, args)
 
         # get dataloader
         self.get_data_loaders()
