@@ -8,6 +8,6 @@ python3 main.py \
 -eval_index_file in_test_samples_128.json \
 -logdir /home/vc/log \
 -store_model_path /home/vc/model \
--tag exp2 \
+-tag exp3 \
 -iters 500000 \
--summary_step 1000
+-summary_step 100

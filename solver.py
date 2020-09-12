@@ -60,14 +60,15 @@ class Solver(object):
     # データをロードする.
     def get_data_loaders(self):
         data_dir = self.args.data_dir
+        gpu_num = torch.cuda.device_count() if torch.cuda.is_available() else 1
         self.train_dataset = PickleDataset(os.path.join(data_dir, f'{self.args.train_set}.pkl'), 
                 os.path.join(data_dir, self.args.train_index_file), 
                 segment_size=self.config['data_loader']['segment_size'])
         self.train_loader = get_data_loader(self.train_dataset,
                 frame_size=self.config['data_loader']['frame_size'],
-                batch_size=self.config['data_loader']['batch_size'], 
+                batch_size=self.config['data_loader']['batch_size']*gpu_num, 
                 shuffle=self.config['data_loader']['shuffle'], 
-                num_workers=4, drop_last=False)
+                drop_last=False)
         self.train_iter = infinite_iter(self.train_loader)
 
         if self.args.use_eval_set:
@@ -78,9 +79,9 @@ class Solver(object):
 
             self.eval_loader = get_data_loader(self.eval_dataset,
                 frame_size=self.config['data_loader']['frame_size'],
-                batch_size=self.config['data_loader']['batch_size'], 
-                shuffle=self.config['data_loader']['shuffle'], 
-                num_workers=4, drop_last=False)
+                batch_size=self.config['data_loader']['batch_size']*gpu_num, 
+                shuffle=self.config['data_loader']['shuffle'],
+                drop_last=False)
             self.eval_iter = infinite_iter(self.eval_loader)
 
         return
@@ -122,7 +123,7 @@ class Solver(object):
 
     def train(self, n_iterations):
         loss_eval = 0.0
-        epoch = 0
+        epoch = 1
         try:
             for iteration in range(n_iterations):
                 if iteration >= self.config['annealing_iters']:
@@ -138,7 +139,8 @@ class Solver(object):
                         self.model.eval()
                         data, flg = next(self.eval_iter)
                         if iteration > 0 and flg:
-                            print(f"[{epoch}] : eval loss : {loss_eval:.4f}")
+                            print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}")
+                            print()
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
                             loss_eval = 0.0

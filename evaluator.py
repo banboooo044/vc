@@ -14,7 +14,7 @@ from utils import *
 from functools import reduce
 from collections import defaultdict
 from tqdm import tqdm
-from fastdtw import fastdtw
+# from fastdtw import fastdtw
 
 class Evaluator(object):
     def __init__(self, config, args):
@@ -34,6 +34,9 @@ class Evaluator(object):
         self.build_model()
         self.load_model()
 
+        with open(self.args.attr, 'rb') as f:
+            self.attr = pickle.load(f)
+
     # データをロードする.
     def get_data_loaders(self):
         data_dir = self.args.data_dir
@@ -48,7 +51,7 @@ class Evaluator(object):
                 frame_size=self.config['data_loader']['frame_size'],
                 batch_size=self.config['data_loader']['batch_size'],
                 shuffle=False,
-                num_workers=4, drop_last=False
+                drop_last=False
         )
 
     def load_model(self):
@@ -57,7 +60,7 @@ class Evaluator(object):
         return
 
     def build_model(self):
-        self.model = cc(AE(self.config))
+        self.model = cc_model(AE(self.config))
         print(self.model)
         return
 
@@ -67,7 +70,7 @@ class Evaluator(object):
         return ret
 
     def ae_step(self, data):
-        x = cc(data)
+        x = cc_data(data)
         with torch.set_grad_enabled(False):
             mu, log_sigma, emb, dec = self.model(x)
             criterion = nn.L1Loss()
