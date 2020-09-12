@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 import pickle
-from inference import Inferencer
 from model import AE, EarlyStopping
 from data_utils import get_data_loader
 from data_utils import PickleDataset
@@ -17,8 +16,6 @@ from tqdm import tqdm
 
 class Evaluator(object):
     def __init__(self, config, args):
-        # config store the value of hyperparameters, turn to attr by AttrDict
-        inferencer = Inferencer(config=config, args=args)
 
         self.config = config
         print(config)
