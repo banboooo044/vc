@@ -86,7 +86,7 @@ class Evaluator(object):
 
     def eval_rec(self):
         self.model.eval()
-        loss_rec, loss_kl = 0.0, 0.0, 0.0
+        loss_rec, loss_kl = 0.0, 0.0
         num = 0
         for data in tqdm(self.test_loader):
             meta = self.ae_step(data)
