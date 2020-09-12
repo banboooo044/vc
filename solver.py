@@ -97,7 +97,11 @@ class Solver(object):
         return
 
     def ae_step(self, data, lambda_kl, phase):
+        print(type(data))
+        print(x.size())
         x = cc(data)
+        print(type(x))
+        print(x.size())
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
             mu, log_sigma, emb, dec = self.model(x)
