@@ -87,7 +87,7 @@ class Solver(object):
 
     def build_model(self):
         # create model, discriminator, optimizers
-        self.model = cc(AE(self.config))
+        self.model = cc_model(AE(self.config))
         print(self.model)
         optimizer = self.config['optimizer']
         self.opt = torch.optim.Adam(self.model.parameters(), 
