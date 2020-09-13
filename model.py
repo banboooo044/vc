@@ -115,6 +115,9 @@ def get_act(act):
     else:
         return nn.ReLU()
 
+def one_hot(x, num_classes):
+    return torch.eye(num_classes)[x]
+
 class VQEmbeddingEMA(nn.Module):
     def __init__(self, n_embeddings, embedding_dim, commitment_cost, decay, epsilon):
         super(VQEmbeddingEMA, self).__init__()
@@ -153,7 +156,7 @@ class VQEmbeddingEMA(nn.Module):
                                 alpha=-2.0, beta=1.0)
 
         indices = torch.argmin(distances.float(), dim=-1)
-        encodings = F.one_hot(indices, M).float()
+        encodings = one_hot(indices, M).float()
         quantized = F.embedding(indices, self.embedding)
         quantized = quantized.view_as(x)
 
