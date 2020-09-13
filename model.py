@@ -154,8 +154,9 @@ class VQEmbeddingEMA(nn.Module):
                                 torch.sum(x_flat ** 2, dim=1, keepdim=True),
                                 x_flat, self.embedding.t(),
                                 alpha=-2.0, beta=1.0)
-
+        print(distances.size())
         indices = torch.argmin(distances.float(), dim=-1)
+        print(indices.size())
         encodings = one_hot(indices, M).float()
         quantized = F.embedding(indices, self.embedding)
         quantized = quantized.view_as(x)
@@ -183,7 +184,7 @@ class VQEmbeddingEMA(nn.Module):
         # encodings :
         perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
         print("perplexity", perplexity)
-        return quantized, loss, sum_probs, torch.tensor([encodings.size(0)])
+        return quantized, loss, sum_probs
 
 class MLP(nn.Module):
     def __init__(self, c_in, c_h, n_blocks, act, sn):
@@ -452,8 +453,8 @@ class ContentEncoderVQ(nn.Module):
             if self.subsample[l] > 1:
                 out = F.avg_pool1d(out, kernel_size=self.subsample[l], ceil_mode=True)
             out = y + out
-        quantized, loss_vq, sum_probs, sum_num = self.vq_layer(out.transpose(1,2))
-        return quantized.transpose(1, 2), loss_vq, sum_probs, sum_num
+        quantized, loss_vq, sum_probs = self.vq_layer(out.transpose(1,2))
+        return quantized.transpose(1, 2), loss_vq, sum_probs
 
 class Decoder(nn.Module):
     def __init__(self, 
@@ -549,20 +550,20 @@ class AE_VQ(nn.Module):
 
     def forward(self, x):
         emb = self.speaker_encoder(x)
-        quantized, loss_vq, sum_probs, sum_num = self.content_encoder(x)
+        quantized, loss_vq, sum_probs = self.content_encoder(x)
         dec = self.decoder(quantized, emb)
-        return quantized, emb, dec, loss_vq, sum_probs, sum_num
+        return quantized, emb, dec, loss_vq, sum_probs
 
     def inference(self, x, x_cond):
         emb = self.speaker_encoder(x_cond)
-        quantized, _, _, _ = self.content_encoder(x)
+        quantized, _, _ = self.content_encoder(x)
         dec = self.decoder(quantized, emb)
         return dec
 
     def inference_multi_target(self, x, x_cond_list):
         emb_list = torch.tensor([ self.speaker_encoder(x_cond) for x_cond in x_cond_list ])
         emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
-        quantized, _, _, _  = self.content_encoder(x)
+        quantized, _, _ = self.content_encoder(x)
         dec = self.decoder(quantized, emb)
         return dec
 
