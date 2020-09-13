@@ -122,12 +122,14 @@ class Solver(object):
         x = cc_data(data)
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
-            quantized, _, dec, loss_vq, sum_probs, sum_num = self.model(x)
+            quantized, _, dec, loss_vq, sum_probs = self.model(x)
             criterion = nn.L1Loss()
             loss_rec = criterion(dec, x)
             loss_vq = torch.mean(loss_vq)
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
-            avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / sum_num.sum()
+            probs_num = quantized.view(-1, self.config['ContentEncoder']['c_h']).size(0)
+            print("probs_num", probs_num)
+            avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / (probs_num*self.gpu_num)
             perplexity_vq = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
             print("TOTAL perplexity", perplexity_vq)
             if phase == 'train':
