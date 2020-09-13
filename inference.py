@@ -30,7 +30,6 @@ def fix_key(state_dict):
         new_state_dict[k] = v
     return new_state_dict
 
-
 class Inferencer(object):
     def __init__(self, config, args):
         # config store the value of hyperparameters, turn to attr by AttrDict

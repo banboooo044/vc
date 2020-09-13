@@ -63,13 +63,13 @@ class Solver(object):
     # データをロードする.
     def get_data_loaders(self):
         data_dir = self.args.data_dir
-        gpu_num = torch.cuda.device_count() if torch.cuda.is_available() else 1
+        self.gpu_num = torch.cuda.device_count() if torch.cuda.is_available() else 1
         self.train_dataset = PickleDataset(os.path.join(data_dir, f'{self.args.train_set}.pkl'), 
                 os.path.join(data_dir, self.args.train_index_file), 
                 segment_size=self.config['data_loader']['segment_size'])
         self.train_loader = get_data_loader(self.train_dataset,
                 frame_size=self.config['data_loader']['frame_size'],
-                batch_size=self.config['data_loader']['batch_size']*gpu_num, 
+                batch_size=self.config['data_loader']['batch_size']*self.gpu_num, 
                 shuffle=self.config['data_loader']['shuffle'], 
                 drop_last=False)
         self.train_iter = infinite_iter(self.train_loader)
@@ -82,7 +82,7 @@ class Solver(object):
 
             self.eval_loader = get_data_loader(self.eval_dataset,
                 frame_size=self.config['data_loader']['frame_size'],
-                batch_size=self.config['data_loader']['batch_size']*gpu_num, 
+                batch_size=self.config['data_loader']['batch_size']*self.gpu_num, 
                 shuffle=self.config['data_loader']['shuffle'],
                 drop_last=False)
             self.eval_iter = infinite_iter(self.eval_loader)
@@ -129,10 +129,10 @@ class Solver(object):
         epoch = 1
         try:
             for iteration in range(n_iterations):
-                if iteration >= self.config['annealing_iters']:
+                if iteration >= (self.config['annealing_iters'] / self.gpu_num):
                     lambda_kl = self.config['lambda']['lambda_kl']
                 else:
-                    lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) / self.config['annealing_iters']
+                    lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) * self.gpu_num / self.config['annealing_iters']
 
                 for phase in ['train', 'eval']:
                     if phase == 'train':
