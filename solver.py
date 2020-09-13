@@ -167,10 +167,9 @@ class Solver(object):
                         if flg and iteration > 0:
                             print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}", flush=True)
                             print()
-                            loss_eval = 0.0
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
-                            print(f"CNT: {self.EarlyStopping.cnt}")
+                            loss_eval = 0.0
                             if flg:
                                 self.save_model(iteration=iteration)
                                 return
