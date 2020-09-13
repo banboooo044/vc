@@ -87,6 +87,21 @@ class Solver(object):
                 drop_last=False)
             self.eval_iter = infinite_iter(self.eval_loader)
 
+        if self.args.use_test_set:
+            self.test_dataset = PickleDataset(
+                os.path.join(data_dir, f'{self.args.test_set}.pkl'),
+                os.path.join(data_dir, self.args.test_index_file),
+                segment_size=self.config['data_loader']['segment_size']
+            )
+
+            self.test_loader = get_data_loader(self.test_dataset,
+                frame_size=self.config['data_loader']['frame_size'],
+                batch_size=self.config['data_loader']['batch_size'],
+                shuffle=False,
+                drop_last=False
+            )
+            self.test_iter = infinite_iter(self.test_loader)
+
         return
 
     def build_model(self):
@@ -127,6 +142,11 @@ class Solver(object):
     def train(self, n_iterations):
         loss_eval = 0.0
         epoch = 1
+        phases = ['train']
+        if self.args.use_eval_set:
+            phases.append('eval')
+        if self.args.use_test_set:
+            phases.append('test')
         try:
             for iteration in range(n_iterations):
                 if iteration >= (self.config['annealing_iters'] / self.gpu_num):
@@ -134,7 +154,7 @@ class Solver(object):
                 else:
                     lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) * self.gpu_num / self.config['annealing_iters']
 
-                for phase in ['train', 'eval']:
+                for phase in phases:
                     if phase == 'train':
                         self.model.train()
                         data, _ = next(self.train_iter)
@@ -144,12 +164,15 @@ class Solver(object):
                         if iteration > 0 and flg:
                             print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}")
                             print()
+                            loss_eval = 0.0
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
-                            loss_eval = 0.0
                             if flg:
                                 self.save_model(iteration=iteration)
                                 return
+                    elif phase == 'test':
+                        self.model.eval()
+                        data, _ = next(self.test_iter)
 
                     meta = self.ae_step(data, lambda_kl, phase)
                     # add to logger
@@ -162,16 +185,16 @@ class Solver(object):
                     if iteration % self.args.summary_steps == 0:
                         print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
                             f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ')
-                        self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
+                        self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
 
                     print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
                             f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
 
-                    if (iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations:
+                    if phase=='train' and ((iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations):
                         self.save_model(iteration=iteration)
-                        print()
+
         except KeyboardInterrupt:
             self.save_model(iteration=iteration)
-            self.logger.scalars_summary(f'{self.args.tag}/ae_train', meta, iteration)
+            self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
         return
 
