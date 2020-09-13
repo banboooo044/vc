@@ -154,9 +154,7 @@ class VQEmbeddingEMA(nn.Module):
                                 torch.sum(x_flat ** 2, dim=1, keepdim=True),
                                 x_flat, self.embedding.t(),
                                 alpha=-2.0, beta=1.0)
-        print(distances.size())
         indices = torch.argmin(distances.float(), dim=-1)
-        print(indices.size())
         encodings = one_hot(indices, M).float()
         quantized = F.embedding(indices, self.embedding)
         quantized = quantized.view_as(x)
@@ -180,10 +178,6 @@ class VQEmbeddingEMA(nn.Module):
         quantized = x + (quantized - x).detach()
 
         sum_probs = torch.sum(encodings, dim=0)
-        avg_probs = torch.mean(encodings, dim=0)
-        # encodings :
-        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-        print("perplexity", perplexity)
         return quantized, loss, sum_probs
 
 class MLP(nn.Module):

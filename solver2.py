@@ -130,7 +130,6 @@ class Solver(object):
             probs_num = quantized.view(-1, self.config['ContentEncoder']['c_h']).size(0)
             avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / probs_num
             perplexity_vq = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-            print("TOTAL perplexity", perplexity_vq)
             if phase == 'train':
                 loss.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
