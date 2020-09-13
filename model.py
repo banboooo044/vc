@@ -6,6 +6,7 @@ import numpy as np
 from math import ceil
 from functools import reduce
 from torch.nn.utils import spectral_norm
+from utils import cc_data
 
 class EarlyStopping(object):
     def __init__(self, patient, min_delta):
@@ -126,7 +127,7 @@ class VQEmbeddingEMA(nn.Module):
         self.epsilon = epsilon
 
         init_bound = 1 / 512
-        embedding = torch.Tensor(n_embeddings, embedding_dim)
+        embedding = cc_data(torch.Tensor(n_embeddings, embedding_dim))
         embedding.uniform_(-init_bound, init_bound)
         self.register_buffer("embedding", embedding)
         self.register_buffer("ema_count", torch.zeros(n_embeddings))
