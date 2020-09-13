@@ -117,7 +117,7 @@ def get_act(act):
         return nn.ReLU()
 
 def one_hot(x, num_classes):
-    return torch.eye(num_classes)[x]
+    return cc_data(torch.eye(num_classes)[x])
 
 class VQEmbeddingEMA(nn.Module):
     def __init__(self, n_embeddings, embedding_dim, commitment_cost, decay, epsilon):
@@ -127,9 +127,8 @@ class VQEmbeddingEMA(nn.Module):
         self.epsilon = epsilon
 
         init_bound = 1 / 512
-        embedding = cc_data(torch.Tensor(n_embeddings, embedding_dim))
-        embedding.uniform_(-init_bound, init_bound)
-        self.register_buffer("embedding", embedding)
+        self.register_buffer("embedding", torch.Tensor(n_embeddings, embedding_dim))
+        self.embedding.uniform_(-init_bound, init_bound)
         self.register_buffer("ema_count", torch.zeros(n_embeddings))
         self.register_buffer("ema_weight", self.embedding.clone())
 
@@ -174,16 +173,17 @@ class VQEmbeddingEMA(nn.Module):
 
             self.embedding = self.ema_weight / self.ema_count.unsqueeze(-1)
 
-        e_latent_loss = F.mse_loss(x, quantized.detach())
+        e_latent_loss = F.mse_loss(x, quantized.detach(), reduction='none')
         # commitment_cost * || z_n - sg[VQ(z_n)] ||^2のロス
         loss = self.commitment_cost * e_latent_loss
 
         quantized = x + (quantized - x).detach()
 
-        avg_probs = torch.mean(encodings, dim=0)
-        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-
-        return quantized, loss, perplexity
+        sum_probs = torch.sum(encodings, dim=0)
+        # perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+        print("loss_size", loss.size())
+        print("sum_prob_size",sum_probs.size())
+        return quantized, loss, sum_probs
 
 class MLP(nn.Module):
     def __init__(self, c_in, c_h, n_blocks, act, sn):
@@ -452,8 +452,8 @@ class ContentEncoderVQ(nn.Module):
             if self.subsample[l] > 1:
                 out = F.avg_pool1d(out, kernel_size=self.subsample[l], ceil_mode=True)
             out = y + out
-        quantized, loss, perplexity = self.vq_layer(out.transpose(1,2))
-        return quantized.transpose(1, 2), loss, perplexity
+        quantized, loss_vq, sum_probs = self.vq_layer(out.transpose(1,2))
+        return quantized.transpose(1, 2), loss_vq, sum_probs
 
 class Decoder(nn.Module):
     def __init__(self, 
@@ -549,9 +549,9 @@ class AE_VQ(nn.Module):
 
     def forward(self, x):
         emb = self.speaker_encoder(x)
-        quantized, loss_vq, perplexity_vq = self.content_encoder(x)
+        quantized, loss_vq,  sum_probs = self.content_encoder(x)
         dec = self.decoder(quantized, emb)
-        return quantized, emb, dec, loss_vq, perplexity_vq
+        return quantized, emb, dec, loss_vq, sum_probs
 
     def inference(self, x, x_cond):
         emb = self.speaker_encoder(x_cond)

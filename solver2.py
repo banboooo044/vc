@@ -122,9 +122,12 @@ class Solver(object):
         x = cc_data(data)
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
-            quantized, _, dec, loss_vq, perplexity_vq = self.model(x)
+            quantized, _, dec, loss_vq, sum_probs = self.model(x)
+            print("loss_size", loss_vq.size())
+            print("sum_prob_size",sum_probs.size())
             criterion = nn.L1Loss()
             loss_rec = criterion(dec, x)
+            loss_vq = torch.mean(loss_vq)
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
             if phase == 'train':
                 loss.backward()
