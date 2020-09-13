@@ -162,7 +162,6 @@ class VQEmbeddingEMA(nn.Module):
 
         # 移動平均によって学習. 勾配で学習は行わず, ここで更新している.
         if self.training:
-            print(type(encodings), type(self.ema_count))
             self.ema_count = self.decay * self.ema_count + (1 - self.decay) * torch.sum(encodings, dim=0)
 
             n = torch.sum(self.ema_count)
@@ -180,9 +179,9 @@ class VQEmbeddingEMA(nn.Module):
         quantized = x + (quantized - x).detach()
 
         sum_probs = torch.sum(encodings, dim=0)
-        # perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-        print("loss_size", loss.size())
-        print("sum_prob_size",sum_probs.size())
+        avg_probs = torch.mean(encodings, dim=0)
+        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+        print("perplexity",perplexity)
         return quantized, loss, sum_probs
 
 class MLP(nn.Module):
