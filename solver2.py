@@ -127,9 +127,9 @@ class Solver(object):
             loss_rec = criterion(dec, x)
             loss_vq = torch.mean(loss_vq)
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
-            avg_probs = torch.mean(sum_probs.view(self.gpu_num, -1), dim=0) / self.config['ContentEncoder']['embedding_num']
+            avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / (self.config['ContentEncoder']['embedding_num']*self.gpu_num)
+            print("total avg_probs", avg_probs)
             perplexity_vq = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-            print(perplexity_vq)
             if phase == 'train':
                 loss.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
