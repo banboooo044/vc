@@ -163,6 +163,7 @@ class VQEmbeddingEMA(nn.Module):
 
         # 移動平均によって学習. 勾配で学習は行わず, ここで更新している.
         if self.training:
+            print(type(encodings), type(self.ema_count))
             self.ema_count = self.decay * self.ema_count + (1 - self.decay) * torch.sum(encodings, dim=0)
 
             n = torch.sum(self.ema_count)
