@@ -70,6 +70,7 @@ class Solver(object):
         self.train_loader = get_data_loader(self.train_dataset,
                 frame_size=self.config['data_loader']['frame_size'],
                 batch_size=self.config['data_loader']['batch_size']*self.gpu_num, 
+                num_workers=0,
                 shuffle=self.config['data_loader']['shuffle'], 
                 drop_last=False)
         self.train_iter = infinite_iter(self.train_loader)
@@ -84,6 +85,7 @@ class Solver(object):
                 frame_size=self.config['data_loader']['frame_size'],
                 batch_size=self.config['data_loader']['batch_size']*self.gpu_num, 
                 shuffle=self.config['data_loader']['shuffle'],
+                num_workers=0,
                 drop_last=False)
             self.eval_iter = infinite_iter(self.eval_loader)
 
@@ -98,6 +100,7 @@ class Solver(object):
                 frame_size=self.config['data_loader']['frame_size'],
                 batch_size=self.config['data_loader']['batch_size'],
                 shuffle=False,
+                num_workers=0,
                 drop_last=False
             )
             self.test_iter = infinite_iter(self.test_loader)
