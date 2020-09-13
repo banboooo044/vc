@@ -41,7 +41,10 @@ class Solver(object):
 
     def save_model(self, iteration):
         # save model and discriminator and their optimizer
-        torch.save(self.model.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
+        if isinstance(self.model, DataParallel):
+            torch.save(self.model.module.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
+        else:
+            torch.save(self.model.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
         torch.save(self.opt.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.opt')
 
     def save_config(self):

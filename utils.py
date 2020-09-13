@@ -12,13 +12,12 @@ def cc_data(data):
 
 def cc_model(net):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    if device.type == 'cuda':
+    if device.type == 'cuda' and torch.cuda.device_count() > 1:
         device_ids = list(range(torch.cuda.device_count()))
         net = torch.nn.DataParallel(net, device_ids=device_ids) # make parallel
         torch.backends.cudnn.benchmark = True
     net = net.to(device)
     return net
-
 
 class Logger(object):
     def __init__(self, logdir='./log'):
