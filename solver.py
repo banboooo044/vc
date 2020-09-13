@@ -41,7 +41,7 @@ class Solver(object):
 
     def save_model(self, iteration):
         # save model and discriminator and their optimizer
-        if isinstance(self.model, DataParallel):
+        if isinstance(self.model, torch.nn.DataParallel):
             torch.save(self.model.module.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
         else:
             torch.save(self.model.state_dict(), f'{self.args.store_model_path}/{self.args.tag}.ckpt')
@@ -161,8 +161,8 @@ class Solver(object):
                     elif phase == 'eval':
                         self.model.eval()
                         data, flg = next(self.eval_iter)
-                        if iteration > 0 and flg:
-                            print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}")
+                        if flg and iteration > 0:
+                            print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}", flush=True)
                             print()
                             loss_eval = 0.0
                             epoch+=1
