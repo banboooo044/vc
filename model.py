@@ -180,8 +180,8 @@ class VQEmbeddingEMA(nn.Module):
 
         sum_probs = torch.sum(encodings, dim=0)
         avg_probs = torch.mean(encodings, dim=0)
-        #perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
-        print("total avg_probs", avg_probs)
+        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+        print("perplexity", perplexity)
         return quantized, loss, sum_probs
 
 class MLP(nn.Module):
