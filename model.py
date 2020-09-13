@@ -183,7 +183,7 @@ class VQEmbeddingEMA(nn.Module):
         # encodings :
         perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
         print("perplexity", perplexity)
-        return quantized, loss, sum_probs, encodings.size()[0]
+        return quantized, loss, sum_probs, torch.tensor([encodings.size(0)])
 
 class MLP(nn.Module):
     def __init__(self, c_in, c_h, n_blocks, act, sn):
