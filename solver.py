@@ -170,6 +170,7 @@ class Solver(object):
                             loss_eval = 0.0
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
+                            print(f"CNT: {self.EarlyStopping.cnt}")
                             if flg:
                                 self.save_model(iteration=iteration)
                                 return
