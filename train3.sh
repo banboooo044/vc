@@ -1,4 +1,4 @@
-python3 main.py \
+python3 main2.py \
 -c config2.yaml \
 -d /home/data/mel_data \
 -train_set train_128 \
