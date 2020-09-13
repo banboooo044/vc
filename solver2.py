@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 import pickle
-from model import AE, EarlyStopping
+from model import AE_VQ, EarlyStopping
 from data_utils import get_data_loader
 from data_utils import PickleDataset
 from utils import *
@@ -109,7 +109,7 @@ class Solver(object):
 
     def build_model(self):
         # create model, discriminator, optimizers
-        self.model = cc_model(AE(self.config))
+        self.model = cc_model(AE_VQ(self.config))
         print(self.model)
         optimizer = self.config['optimizer']
         self.opt = torch.optim.Adam(self.model.parameters(), 
@@ -118,16 +118,14 @@ class Solver(object):
         print(self.opt)
         return
 
-    def ae_step(self, data, lambda_kl, phase):
+    def ae_step(self, data,  phase):
         x = cc_data(data)
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
-            mu, log_sigma, emb, dec = self.model(x)
+            quantized, _, dec, loss_vq, perplexity_vq = self.model(x)
             criterion = nn.L1Loss()
             loss_rec = criterion(dec, x)
-            loss_kl = 0.5 * torch.mean(torch.exp(log_sigma) + mu ** 2 - 1 - log_sigma)
-            loss = self.config['lambda']['lambda_rec'] * loss_rec + \
-                lambda_kl * loss_kl
+            loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
             if phase == 'train':
                 loss.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
@@ -135,12 +133,14 @@ class Solver(object):
                 self.opt.step()
                 meta = {'loss' :  loss.item(),
                         'loss_rec': loss_rec.item(),
-                        'loss_kl': loss_kl.item(),
+                        'loss_vq': loss_vq.item(),
+                        'perplexity_vq' : perplexity_vq.item(),
                         'grad_norm': grad_norm}
             else:
                 meta = {'loss' :  loss.item(),
                         'loss_rec': loss_rec.item(),
-                        'loss_kl': loss_kl.item() }
+                        'loss_vq': loss_vq.item(),
+                        'perplexity_vq' : perplexity_vq.item()}
 
         return meta
 
@@ -154,11 +154,6 @@ class Solver(object):
             phases.append('test')
         try:
             for iteration in range(n_iterations):
-                if iteration >= (self.config['annealing_iters'] / self.gpu_num):
-                    lambda_kl = self.config['lambda']['lambda_kl']
-                else:
-                    lambda_kl = self.config['lambda']['lambda_kl'] * (iteration + 1) * self.gpu_num / self.config['annealing_iters']
-
                 for phase in phases:
                     if phase == 'train':
                         self.model.train()
@@ -179,21 +174,22 @@ class Solver(object):
                         self.model.eval()
                         data, _ = next(self.test_iter)
 
-                    meta = self.ae_step(data, lambda_kl, phase)
+                    meta = self.ae_step(data, phase)
                     # add to logger
                     loss_rec = meta['loss_rec']
-                    loss_kl = meta['loss_kl']
+                    loss_vq = meta['loss_vq']
+                    perplexity_vq = meta['perplexity_vq']
 
                     if phase == 'eval':
                         loss_eval += meta['loss']
 
                     if iteration % self.args.summary_steps == 0:
                         print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                            f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ')
+                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1e}     ')
                         self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
 
                     print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                            f'loss_kl={loss_kl:.2f}, lambda={lambda_kl:.1e}     ', end='\r')
+                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1e}    ', end='\r')
 
                     if phase=='train' and ((iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations):
                         self.save_model(iteration=iteration)

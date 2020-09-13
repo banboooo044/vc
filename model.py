@@ -115,6 +115,71 @@ def get_act(act):
     else:
         return nn.ReLU()
 
+class VQEmbeddingEMA(nn.Module):
+    def __init__(self, n_embeddings, embedding_dim, commitment_cost, decay, epsilon):
+        super(VQEmbeddingEMA, self).__init__()
+        self.commitment_cost = commitment_cost
+        self.decay = decay
+        self.epsilon = epsilon
+
+        init_bound = 1 / 512
+        embedding = torch.Tensor(n_embeddings, embedding_dim)
+        embedding.uniform_(-init_bound, init_bound)
+        self.register_buffer("embedding", embedding)
+        self.register_buffer("ema_count", torch.zeros(n_embeddings))
+        self.register_buffer("ema_weight", self.embedding.clone())
+
+    def encode(self, x):
+        M, D = self.embedding.size()
+        x_flat = x.detach().reshape(-1, D)
+
+        distances = torch.addmm(torch.sum(self.embedding ** 2, dim=1) +
+                                torch.sum(x_flat ** 2, dim=1, keepdim=True),
+                                x_flat, self.embedding.t(),
+                                alpha=-2.0, beta=1.0)
+
+        indices = torch.argmin(distances.float(), dim=-1)
+        quantized = F.embedding(indices, self.embedding)
+        quantized = quantized.view_as(x)
+        return quantized, indices.view(x.size(0), x.size(1))
+
+    def forward(self, x):
+        M, D = self.embedding.size()
+        x_flat = x.detach().reshape(-1, D)
+
+        distances = torch.addmm(torch.sum(self.embedding ** 2, dim=1) +
+                                torch.sum(x_flat ** 2, dim=1, keepdim=True),
+                                x_flat, self.embedding.t(),
+                                alpha=-2.0, beta=1.0)
+
+        indices = torch.argmin(distances.float(), dim=-1)
+        encodings = F.one_hot(indices, M).float()
+        quantized = F.embedding(indices, self.embedding)
+        quantized = quantized.view_as(x)
+
+        # 移動平均によって学習. 勾配で学習は行わず, ここで更新している.
+        if self.training:
+            self.ema_count = self.decay * self.ema_count + (1 - self.decay) * torch.sum(encodings, dim=0)
+
+            n = torch.sum(self.ema_count)
+            self.ema_count = (self.ema_count + self.epsilon) / (n + M * self.epsilon) * n
+
+            dw = torch.matmul(encodings.t(), x_flat)
+            self.ema_weight = self.decay * self.ema_weight + (1 - self.decay) * dw
+
+            self.embedding = self.ema_weight / self.ema_count.unsqueeze(-1)
+
+        e_latent_loss = F.mse_loss(x, quantized.detach())
+        # commitment_cost * || z_n - sg[VQ(z_n)] ||^2のロス
+        loss = self.commitment_cost * e_latent_loss
+
+        quantized = x + (quantized - x).detach()
+
+        avg_probs = torch.mean(encodings, dim=0)
+        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+
+        return quantized, loss, perplexity
+
 class MLP(nn.Module):
     def __init__(self, c_in, c_h, n_blocks, act, sn):
         super(MLP, self).__init__()
@@ -339,6 +404,52 @@ class ContentEncoder(nn.Module):
         log_sigma = pad_layer(out, self.std_layer)
         return mu, log_sigma
 
+class ContentEncoderVQ(nn.Module):
+    def __init__(self, c_in, c_h, kernel_size,
+            bank_size, bank_scale, c_bank, 
+            n_conv_blocks, subsample, 
+            act, dropout_rate, embedding_num, commitment_cost, decay, epsilon):
+        super(ContentEncoderVQ, self).__init__()
+        self.n_conv_blocks = n_conv_blocks
+        self.subsample = subsample
+        self.act = get_act(act)
+        self.conv_bank = nn.ModuleList(
+                [nn.Conv1d(c_in, c_bank, kernel_size=k) for k in range(bank_scale, bank_size + 1, bank_scale)])
+        in_channels = c_bank * (bank_size // bank_scale) + c_in
+        self.in_conv_layer = nn.Conv1d(in_channels, c_h, kernel_size=1)
+        self.first_conv_layers = nn.ModuleList([nn.Conv1d(c_h, c_h, kernel_size=kernel_size) for _ \
+                in range(n_conv_blocks)])
+        self.second_conv_layers = nn.ModuleList([nn.Conv1d(c_h, c_h, kernel_size=kernel_size, stride=sub) 
+            for sub, _ in zip(subsample, range(n_conv_blocks))])
+        self.norm_layer = nn.InstanceNorm1d(c_h, affine=False)
+        self.vq_layer = VQEmbeddingEMA(embedding_num, c_h, commitment_cost, decay, epsilon)
+        self.dropout_layer = nn.Dropout(p=dropout_rate)
+
+
+    def forward(self, x):
+        # 時間方向の畳み込み特徴量を取得
+        out = conv_bank(x, self.conv_bank, act=self.act)
+        # dimension reduction layer
+        out = pad_layer(out, self.in_conv_layer)
+        out = self.norm_layer(out)
+        out = self.act(out)
+        out = self.dropout_layer(out)
+        # convolution blocks
+        for l in range(self.n_conv_blocks):
+            y = pad_layer(out, self.first_conv_layers[l])
+            y = self.norm_layer(y)
+            y = self.act(y)
+            y = self.dropout_layer(y)
+            y = pad_layer(y, self.second_conv_layers[l])
+            y = self.norm_layer(y)
+            y = self.act(y)
+            y = self.dropout_layer(y)
+            if self.subsample[l] > 1:
+                out = F.avg_pool1d(out, kernel_size=self.subsample[l], ceil_mode=True)
+            out = y + out
+        quantized, loss, perplexity = self.vq_layer(out.transpose(1,2))
+        return quantized.transpose(1, 2), loss, perplexity
+
 class Decoder(nn.Module):
     def __init__(self, 
             c_in, c_cond, c_h, c_out, 
@@ -397,6 +508,7 @@ class AE(nn.Module):
     def forward(self, x):
         emb = self.speaker_encoder(x)
         mu, log_sigma = self.content_encoder(x)
+        # 乱数生成
         eps = log_sigma.new(*log_sigma.size()).normal_(0, 1)
         dec = self.decoder(mu + torch.exp(log_sigma / 2) * eps, emb)
         return mu, log_sigma, emb, dec
@@ -412,6 +524,41 @@ class AE(nn.Module):
         emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
         mu, _ = self.content_encoder(x)
         dec = self.decoder(mu, emb)
+        return dec
+
+    def get_speaker_embeddings(self, x):
+        emb = self.speaker_encoder(x)
+        return emb
+
+    def get_speaker_embeddings_multi_target(self, x_list):
+        emb_list = torch.tensor([ self.speaker_encoder(x) for x in x_list ])
+        emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
+        return
+
+class AE_VQ(nn.Module):
+    def __init__(self, config):
+        super(AE_VQ, self).__init__()
+        self.speaker_encoder = SpeakerEncoder(**config['SpeakerEncoder'])
+        self.content_encoder = ContentEncoderVQ(**config['ContentEncoder'])
+        self.decoder = Decoder(**config['Decoder'])
+
+    def forward(self, x):
+        emb = self.speaker_encoder(x)
+        quantized, loss_vq, perplexity_vq = self.content_encoder(x)
+        dec = self.decoder(quantized, emb)
+        return quantized, emb, dec, loss_vq, perplexity_vq
+
+    def inference(self, x, x_cond):
+        emb = self.speaker_encoder(x_cond)
+        quantized, _, _ = self.content_encoder(x)
+        dec = self.decoder(quantized, emb)
+        return dec
+
+    def inference_multi_target(self, x, x_cond_list):
+        emb_list = torch.tensor([ self.speaker_encoder(x_cond) for x_cond in x_cond_list ])
+        emb = torch.sum(emb_list, dim=0) / emb_list.size()[0]
+        quantized, _, _  = self.content_encoder(x)
+        dec = self.decoder(quantized, emb)
         return dec
 
     def get_speaker_embeddings(self, x):
