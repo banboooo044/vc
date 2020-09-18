@@ -179,7 +179,7 @@ class VQEmbeddingEMA(nn.Module):
         quantized = x + (quantized - x).detach()
 
         sum_probs = torch.sum(encodings, dim=0)
-        return quantized.detach(), loss, sum_probs
+        return quantized, loss, sum_probs
 
 class MLP(nn.Module):
     def __init__(self, c_in, c_h, n_blocks, act, sn):

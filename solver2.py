@@ -123,8 +123,7 @@ class Solver(object):
         self.opt.zero_grad()
         with torch.set_grad_enabled(phase=='train'):
             quantized, _, dec, loss_vq, sum_probs = self.model(x)
-            criterion = nn.L1Loss()
-            loss_rec = criterion(dec, x)
+            loss_rec = F.cross_entropy(dec, x)
             loss_vq = torch.mean(loss_vq)
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
             probs_num = quantized.size(0)*quantized.size(2)
