@@ -131,7 +131,7 @@ class Solver(object):
             avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / probs_num
             perplexity_vq = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
             if phase == 'train':
-                loss_vq.backward()
+                loss.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 
                         max_norm=self.config['optimizer']['grad_norm'])
                 self.opt.step()

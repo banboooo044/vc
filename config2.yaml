@@ -23,7 +23,7 @@ ContentEncoder:
     act: 'relu'
     dropout_rate: 0
     embedding_num: 512
-    commitment_cost: 0.25
+    commitment_cost: 0.5
     decay: 0.999
     epsilon: 0.00001
 Decoder:
