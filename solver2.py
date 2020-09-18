@@ -150,6 +150,7 @@ class Solver(object):
 
     def train(self, n_iterations):
         loss_eval = 0.0
+        loss_rec, loss_vq = 0.0, 0.0
         epoch = 1
         phases = ['train']
         if self.args.use_eval_set:
@@ -170,10 +171,10 @@ class Solver(object):
                             print()
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
-                            loss_eval = 0.0
                             if flg:
                                 self.save_model(iteration=iteration)
-                                return
+                                return loss_eval
+                            loss_eval = 0.0
                     elif phase == 'test':
                         self.model.eval()
                         data, _ = next(self.test_iter)
@@ -201,5 +202,5 @@ class Solver(object):
         except KeyboardInterrupt:
             self.save_model(iteration=iteration)
             self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
-        return
 
+        return loss_eval
