@@ -23,7 +23,7 @@ ContentEncoder:
     act: 'relu'
     dropout_rate: 0
     embedding_num: 512
-    commitment_cost: 0.5
+    commitment_cost: 5.0
     decay: 0.999
     epsilon: 0.00001
 Decoder:
@@ -50,7 +50,7 @@ optimizer:
     weight_decay: 0.0001
     grad_norm: 5
 lambda:
-    lambda_rec: 1.0
+    lambda_rec: 0.5
 early_stopping:
     patient: 10
     min_delta : 0.0001
