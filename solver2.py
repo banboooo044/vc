@@ -127,7 +127,7 @@ class Solver(object):
             loss_rec = criterion(dec, x)
             loss_vq = torch.mean(loss_vq)
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
-            probs_num = torch.sum(quantized.size()) // self.config['ContentEncoder']['c_h']
+            probs_num = quantized.size(0)*quantized.size(2)
             avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / probs_num
             perplexity_vq = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
             if phase == 'train':
