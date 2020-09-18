@@ -164,8 +164,8 @@ class VQEmbeddingEMA(nn.Module):
         if self.training:
             self.ema_count = self.decay * self.ema_count + (1 - self.decay) * torch.sum(encodings, dim=0)
 
-            #n = torch.sum(self.ema_count)
-            #The self.ema_count = (self.ema_count + self.epsilon) / (n + M * self.epsilon) * n
+            n = torch.sum(self.ema_count)
+            self.ema_count = (self.ema_count + self.epsilon) / (n + M * self.epsilon) * n
 
             dw = torch.matmul(encodings.t(), x_flat)
             self.ema_weight = self.decay * self.ema_weight + (1 - self.decay) * dw
@@ -438,11 +438,11 @@ class ContentEncoderVQ(nn.Module):
         # convolution blocks
         for l in range(self.n_conv_blocks):
             y = pad_layer(out, self.first_conv_layers[l])
-            #y = self.norm_layer(y)
+            y = self.norm_layer(y)
             y = self.act(y)
             y = self.dropout_layer(y)
             y = pad_layer(y, self.second_conv_layers[l])
-            #y = self.norm_layer(y)
+            y = self.norm_layer(y)
             y = self.act(y)
             y = self.dropout_layer(y)
             if self.subsample[l] > 1:
