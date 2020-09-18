@@ -52,5 +52,5 @@ optimizer:
 lambda:
     lambda_rec: 0.5
 early_stopping:
-    patient: 10
+    patient: 5
     min_delta : 0.0001
