@@ -22,7 +22,7 @@ ContentEncoder:
     subsample: [1, 2, 1, 2, 1, 2]
     act: 'relu'
     dropout_rate: 0
-    embedding_num: 512
+    embedding_num: 1024
     commitment_cost: 5.0
     decay: 0.999
     epsilon: 0.00001
