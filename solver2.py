@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import yaml
 import pickle
 from model import AE_VQ, EarlyStopping
-from data_utils import get_data_loader
+from data_utils import get_data_loader, melcd
 from data_utils import PickleDataset
 from utils import *
 from functools import reduce
@@ -126,6 +126,7 @@ class Solver(object):
             criterion = nn.L1Loss()
             loss_rec = criterion(dec, x)
             loss_vq = torch.mean(loss_vq)
+            mel_cd = melcd(dec.transpose(1, 2).squeeze(0).detach().cpu().numpy(), x.transpose(1, 2).squeeze(0).detach().cpu().numpy())
             loss = self.config['lambda']['lambda_rec'] * loss_rec + loss_vq
             probs_num = quantized.size(0)*quantized.size(2)
             avg_probs = torch.sum(sum_probs.view(self.gpu_num, -1), dim=0) / probs_num
@@ -139,18 +140,20 @@ class Solver(object):
                         'loss_rec': loss_rec.item(),
                         'loss_vq': loss_vq.item(),
                         'perplexity_vq' : perplexity_vq.item(),
+                        'mel_cd' : mel_cd,
                         'grad_norm': grad_norm}
             else:
                 meta = {'loss' :  loss.item(),
                         'loss_rec': loss_rec.item(),
                         'loss_vq': loss_vq.item(),
+                        'mel_cd' : mel_cd,
                         'perplexity_vq' : perplexity_vq.item()}
 
         return meta
 
     def train(self, n_iterations):
         loss_eval = 0.0
-        loss_rec, loss_vq = 0.0, 0.0
+        loss_rec, loss_vq, mel_cd = 0.0, 0.0, 0.0
         epoch = 1
         phases = ['train']
         if self.args.use_eval_set:
@@ -167,14 +170,15 @@ class Solver(object):
                         self.model.eval()
                         data, flg = next(self.eval_iter)
                         if flg and iteration > 0:
-                            print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}", flush=True)
+                            print(f"eval epoch[{epoch}] : eval loss : {loss_eval:.4f}, mel_cd : {mel_cd:.4f}", flush=True)
                             print()
                             epoch+=1
                             flg = self.EarlyStopping.is_stop(loss_eval)
                             if flg:
                                 self.save_model(iteration=iteration)
-                                return loss_eval
+                                return loss_eval, mel_cd
                             loss_eval = 0.0
+                            mel_cd = 0.0
                     elif phase == 'test':
                         self.model.eval()
                         data, _ = next(self.test_iter)
@@ -184,17 +188,19 @@ class Solver(object):
                     loss_rec = meta['loss_rec']
                     loss_vq = meta['loss_vq']
                     perplexity_vq = meta['perplexity_vq']
+                    mel_cd = meta['mel_cd']
 
                     if phase == 'eval':
                         loss_eval += meta['loss']
+                        mel_cd += meta['mel_cd']
 
                     if iteration % self.args.summary_steps == 0:
                         print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1e}     ')
+                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1f}, mel_cd={mel_cd:.1f}     ')
                         self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
 
                     print(f'{format(phase, ">5")} :: AE:[{iteration + 1}/{n_iterations}], loss_rec={loss_rec:.2f}, '
-                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1e}    ', end='\r')
+                            f'loss_vq={loss_vq:.2f}, perplexity_vq={perplexity_vq:.1f}, mel_cd={mel_cd:.1f}    ', end='\r')
 
                     if phase=='train' and ((iteration + 1) % self.args.save_steps == 0 or iteration + 1 == n_iterations):
                         self.save_model(iteration=iteration)
@@ -203,4 +209,4 @@ class Solver(object):
             self.save_model(iteration=iteration)
             self.logger.scalars_summary(f'{self.args.tag}/ae_{phase}', meta, iteration)
 
-        return loss_eval
+        return loss_eval, mel_cd

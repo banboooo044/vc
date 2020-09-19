@@ -11,6 +11,7 @@ def objective(trial):
     最適化対象のコード
     '''
     # VQ
+    embedding_num = trial.suggest_categorical('embedding_num', [128, 256, 512, 1024])
     commitment_cost = trial.suggest_loguniform('commitment_cost', 1e-3, 100.0)
     epsilon = trial.suggest_loguniform('epsilon', 1e-7, 1e-3)
     # optimizer
@@ -18,13 +19,14 @@ def objective(trial):
     # lambda
     lambda_rec = trial.suggest_loguniform('lambda_rec', 1e-3, 100.0)
 
+    config['ContentEncoder']['embedding_num'] = embedding_num
     config['ContentEncoder']['commitment_cost'] = commitment_cost
     config['ContentEncoder']['epsilon'] = epsilon
     config['optimizer']['lr'] = lr
     config['lambda']['lambda_rec'] = lambda_rec
     solver = Solver(config=config, args=args)
-    loss = solver.train(n_iterations=args.iters)
-    return loss
+    loss, mel_cd = solver.train(n_iterations=args.iters)
+    return mel_cd
 
 
 if __name__ == "__main__":
